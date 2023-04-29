@@ -127,9 +127,9 @@ namespace hibp
                 if (verbosity_ > 0)
                 {
                     ss << "\u001b[32;1mTotal hashes collected: " << collection_.size() << "\u001b[0m";
+                    log(ss.str());
                 }
             }
-            log(ss.str());
         }
         if (verbosity_ > 1)
         {
