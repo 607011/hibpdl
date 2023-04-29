@@ -22,4 +22,19 @@ namespace hibp
         return os;
     }
 
+    void hash_count::dump(std::ostream &os) const
+    {
+        os.write(reinterpret_cast<char const *>(data.data()), data.size());
+        uint32_t const cn = htonl(count);
+        os.write(reinterpret_cast<char const *>(&cn), sizeof(cn));
+    }
+
+    hash_count &hash_count::read(std::istream &is)
+    {
+        is.read(reinterpret_cast<char*>(data.data()), data.size());
+        uint32_t cn = 0;
+        is.read(reinterpret_cast<char*>(&cn), sizeof(cn));
+        count = ntohl(cn);
+        return *this;
+    }
 }

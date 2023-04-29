@@ -15,6 +15,11 @@ public:
     {
     }
 
+    void restart()
+    {
+        t0_ = clock_type::now();
+    }
+
     duration elapsed() const
     {
         return clock_type::now() - t0_;

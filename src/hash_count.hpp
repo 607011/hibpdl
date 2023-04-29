@@ -15,6 +15,9 @@ namespace hibp
     {
         sha1_t data;
         std::uint32_t count{0};
+
+        void dump(std::ostream &) const;
+        hash_count &read(std::istream &);
     };
 
     typedef std::vector<hash_count> collection_t;

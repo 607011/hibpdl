@@ -117,7 +117,7 @@ namespace hibp
                 std::uint8_t lo_nibble = ::util::hex2nibble(hex_hash_.at(i + 1));
                 hash_count_.data[hcidx++] = (hi_nibble << 4) | lo_nibble;
             }
-            advance();
+            advance(); // step over COLON
             consume_number();
         }
 

@@ -19,11 +19,10 @@ namespace hibp
     const std::string downloader::DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
     const std::string downloader::ApiUrl = "https://api.pwnedpasswords.com";
 
-    downloader::downloader(std::size_t max_hash_count)
+    downloader::downloader(std::size_t first_prefix, std::size_t last_prefix, std::size_t max_hash_count)
     {
         collection_.reserve(max_hash_count);
-        constexpr std::size_t max_hash = 1 << (4 * 4); // 4 nibbles
-        for (std::size_t i = 0; i < max_hash; ++i)
+        for (std::size_t i = first_prefix; i < last_prefix; ++i)
         {
             hash_prefix_t p{
                 ::util::nibble2hex(static_cast<std::uint8_t>(i >> 12) & 0xf),
@@ -38,7 +37,7 @@ namespace hibp
     void downloader::log(std::string const &message)
     {
         const std::lock_guard<std::mutex> lock(output_mutex_);
-        std::cout << message << std::endl;
+        std::cout << '\r' << message << "\u001b[K" << std::endl;
     }
 
     void downloader::error(std::string const &message)
@@ -47,22 +46,34 @@ namespace hibp
         std::cerr << message << std::endl;
     }
 
+    void downloader::stop()
+    {
+        if (verbosity_ > 1)
+        {
+            log("hibp::downloader::stop()");
+        }
+        do_quit_.store(true);
+    }
+
     void downloader::http_worker()
     {
         httplib::Client cli(ApiUrl);
         cli.set_compress(true);
         httplib::Headers headers{
-            {"User-Agent", DefaultUserAgent}
-        };
+            {"User-Agent", DefaultUserAgent}};
         cli.set_default_headers(headers);
 
-        while (!do_quit_)
+        while (!do_quit_.load())
         {
             hash_prefix_t prefix;
             {
                 std::lock_guard<std::mutex> lock(queue_mutex_);
                 if (hash_queue_.empty())
                 {
+                    if (verbosity_ > 1)
+                    {
+                        std::cout << "Queue is empty; thread ID " << std::this_thread::get_id() << " ..." << std::endl;
+                    }
                     return;
                 }
                 else
@@ -72,15 +83,26 @@ namespace hibp
                 }
             }
             collection_t hashes;
+            hashes.reserve(10'000);
             std::size_t nibble = 0x0;
             while (nibble <= 0xf)
             {
-                prefix[4] = ::util::nibble2hex(nibble);
+                if (do_quit_.load())
+                {
+                    if (verbosity_ > 1)
+                    {
+                        std::ostringstream ss;
+                        ss << "Thread " << std::this_thread::get_id() << " quitting ...";
+                        log(ss.str());
+                    }
+                    return;
+                }
+                prefix[4] = ::util::nibble2hex(static_cast<std::uint8_t>(nibble));
                 std::string const hash_prefix(prefix.begin(), prefix.end());
                 std::string const path = "/range/" + hash_prefix;
                 if (httplib::Result res = cli.Get(path.c_str()))
                 {
-                    std::stringstream ss;
+                    std::ostringstream ss;
                     if (res->status == 200)
                     {
                         response_parser parser(prefix);
@@ -98,13 +120,20 @@ namespace hibp
                     }
                 }
             }
-            std::stringstream ss;
+            std::ostringstream ss;
             {
                 std::lock_guard<std::mutex> lock(collection_mutex_);
                 collection_.insert(collection_.end(), hashes.begin(), hashes.end());
-                ss << "\u001b[32;1mTotal hashes collected: " << collection_.size() << "\u001b[0m";
+                if (verbosity_ > 0)
+                {
+                    ss << "\u001b[32;1mTotal hashes collected: " << collection_.size() << "\u001b[0m";
+                }
             }
             log(ss.str());
+        }
+        if (verbosity_ > 1)
+        {
+            std::cout << "http_worker() with thread ID " << std::this_thread::get_id() << " ..." << std::endl;
         }
     }
 }

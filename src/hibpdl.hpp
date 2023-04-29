@@ -33,18 +33,23 @@ namespace hibp
     class downloader final
     {
     public:
-        explicit downloader(std::size_t max_hash_count);
+        downloader(std::size_t first_prefix, std::size_t last_prefix, std::size_t max_hash_count = 1'000'000);
         downloader(downloader const &) = delete;
         downloader(downloader &&) = delete;
 
         void http_worker();
 
-        std::size_t queue_size() const
+        inline void set_verbosity(int verbosity)
+        {
+            verbosity_ = verbosity;
+        }
+
+        inline std::size_t queue_size() const
         {
             return hash_queue_.size();
         }
 
-        collection_t const &collection() const
+        inline collection_t const &collection() const
         {
             return collection_;
         }
@@ -55,6 +60,8 @@ namespace hibp
             return collection_;
         }
 
+        void stop();
+
         static const std::string ApiUrl;
         static const std::string DefaultUserAgent;
 
@@ -64,7 +71,8 @@ namespace hibp
         std::mutex queue_mutex_;
         std::mutex output_mutex_;
         std::mutex collection_mutex_;
-        std::atomic_bool do_quit_{false};
+        std::atomic_bool do_quit_ = ATOMIC_VAR_INIT(false);
+        int verbosity_{0};
 
         void log(std::string const &message);
         void error(std::string const &message);

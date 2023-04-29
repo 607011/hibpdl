@@ -56,7 +56,7 @@ namespace util
         auto index = str.find(delim);
         if (index != std::string::npos)
         {
-            pair = std::make_pair(str.substr(0, str.size() - index),
+            pair = std::make_pair(str.substr(0, str.size() - index - 1),
                                   str.substr(index + 1, std::string::npos));
             while (pair.second.front() == ' ')
             {

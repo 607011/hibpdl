@@ -7,10 +7,12 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <getopt.h>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <mutex>
 #include <numeric>
 #include <thread>
@@ -21,12 +23,17 @@
 #include "util.hpp"
 #include "hibpdl.hpp"
 
-#ifdef WIN32
+#if _MSC_VER
 #include <Windows.h>
-#define strncasecmp(s1, s2, n) _strnicmp(s1, s2, n)
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#else
+#include <signal.h>
+#include <unistd.h>
 #endif
 
 namespace chrono = std::chrono;
+namespace fs = std::filesystem;
 
 #ifndef PROJECT_NAME
 #define PROJECT_NAME "hibpdl++"
@@ -37,8 +44,11 @@ namespace chrono = std::chrono;
 
 namespace
 {
-    constexpr size_t DefaultNumThreads = 40U;
+    constexpr size_t DefaultNumThreads = 4U;
     const std::string DefaultOutputFilename = "hash+count.bin";
+    const std::string DefaultCheckpointFilename = "checkpoint";
+    const std::string DefaultLockFilename = "lock";
+    constexpr std::uint32_t DefaultHashPrefixStep = 0x0040;
 
     void about()
     {
@@ -69,6 +79,17 @@ namespace
                "WARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n";
     }
 
+    fs::path get_home_directory()
+    {
+#if _MSC_VER
+        std::ostringstream os;
+        os << getenv("HOMEDRIVE") << getenv("HOMEPATH");
+        return fs::path(os.str());
+#else
+        return fs::path(getenv("HOME"));
+#endif
+    }
+
     void brief_usage()
     {
         std::cout
@@ -97,8 +118,21 @@ namespace
                "\n"
                "  -t N [--threads N]\n"
                "    Run in N threads (default: "
-            << DefaultNumThreads << ")"
+            << std::dec << DefaultNumThreads << ")"
             << "\n"
+               "\n"
+               "  -p PREFIX [--first-prefix]\n"
+               "    Begin reading a prefix PREFIX.\n"
+               "    PREFIX must be a hexadecimal number.\n"
+               "\n"
+               "  -s STEP [--prefix-step]\n"
+               "    Read data in chunks of STEP prefix steps.\n"
+               "    STEP must be a hexadecimal number.\n"
+               "    Default: "
+            << std::hex << std::setw(4) << std::setfill('0') << DefaultHashPrefixStep
+            << "\n"
+               "  -y\n"
+               "    Answer YES to all questions.\n"
                "\n"
                "  --help\n"
                "    Display this help\n"
@@ -109,12 +143,59 @@ namespace
     }
 }
 
+std::function<void(int)> shutdown_handler;
+void signal_handler(int signal)
+{
+    shutdown_handler(signal);
+}
+
 int main(int argc, char *argv[])
 {
     std::size_t num_threads{DefaultNumThreads};
     std::string output_filename(DefaultOutputFilename);
-    hibp::downloader hibpdl(900'000'000);
+    std::uint32_t first_hash_prefix{0};
+    std::uint32_t hash_prefix_step{DefaultHashPrefixStep};
+    bool yes = false;
     int verbosity = 0;
+
+    fs::path config_directory{get_home_directory() / fs::path(".hibpdl")};
+    if (!fs::is_directory(config_directory))
+    {
+        fs::create_directory(config_directory);
+    }
+    fs::path checkpoint_filename = config_directory / fs::path(DefaultCheckpointFilename);
+
+    fs::path lock_filename = config_directory / fs::path(DefaultLockFilename);
+    if (fs::exists(lock_filename))
+    {
+        std::ifstream lock_file(lock_filename);
+        std::string pid_str;
+        std::getline(lock_file, pid_str);
+        about();
+        std::cerr
+            << "\n\u001b[31;1m<WARNING>\u001b[0m\n"
+               "A lock file is present, indicating that `"
+            << PROJECT_NAME
+            << "`\nis already running with process ID " << pid_str
+            << ".\n"
+               "If you think that the lock is stale, you can\n"
+               "delete "
+            << lock_filename
+            << " and retry.\n"
+               "\u001b[31;1m</WARNING>\u001b[0m\n\n"
+               "Do you want to delete the lock file and proceed?\n"
+               "[y/n]? ";
+        char c;
+        std::cin >> c;
+        if (c == 'y')
+        {
+            fs::remove(lock_filename);
+        }
+        else
+        {
+            return EXIT_FAILURE;
+        }
+    }
 
     while (true)
     {
@@ -126,7 +207,7 @@ int main(int argc, char *argv[])
             {"help", no_argument, 0, '?'},
             {"license", no_argument, 0, 0},
             {0, 0, 0, 0}};
-        int c = getopt_long(argc, argv, "?d:t:v", long_options, &option_index);
+        int c = getopt_long(argc, argv, "?d:t:vy", long_options, &option_index);
         if (c == -1)
         {
             break;
@@ -134,12 +215,36 @@ int main(int argc, char *argv[])
         switch (c)
         {
         case 0:
+            if (strcasecmp(optarg, "license") == 0)
+            {
+                license();
+                return EXIT_SUCCESS;
+            }
             break;
         case 'o':
             output_filename = optarg;
             break;
         case 't':
             num_threads = static_cast<unsigned int>(atoi(optarg));
+            break;
+        case 'p':
+            first_hash_prefix = std::stoul(optarg, nullptr, 16);
+            if (first_hash_prefix > 0xffff)
+            {
+                std::cerr << "\u001b[31;1mERROR: invalid value, must be less than FFFFh.\u001b[0m" << std::endl;
+                return EXIT_FAILURE;
+            }
+            break;
+        case 's':
+            hash_prefix_step = std::stoul(optarg, nullptr, 16);
+            if (hash_prefix_step > 0x8000)
+            {
+                std::cerr << "\u001b[31;1mERROR: invalid value, must be less than 8000h.\u001b[0m" << std::endl;
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'y':
+            yes = true;
             break;
         case 'v':
             ++verbosity;
@@ -152,49 +257,178 @@ int main(int argc, char *argv[])
             break;
         }
     }
-    num_threads = std::min(num_threads, hibpdl.queue_size());
     if (verbosity > 0)
     {
-        std::cout << "Starting " << num_threads << " worker threads ..." << std::endl;
+        about();
     }
-    std::vector<std::thread> workers;
-    workers.reserve(num_threads);
-    timer t;
-    for (std::size_t i = 0; i < num_threads; ++i)
+    if (verbosity > 1 && !yes)
     {
-        workers.emplace_back(&hibp::downloader::http_worker, &hibpdl);
+        std::cout << "Probing for checkpoint file `" << checkpoint_filename << "` ...\n";
     }
-    for (auto &worker : workers)
+    if (fs::exists(checkpoint_filename) && !yes)
     {
-        worker.join();
+        std::string checkpoint_range;
+        std::ifstream chkpoint(checkpoint_filename);
+        std::getline(chkpoint, checkpoint_range);
+        std::string checkpoint_output_filename;
+        std::getline(chkpoint, checkpoint_output_filename);
+        if (fs::exists(checkpoint_output_filename))
+        {
+            auto [from, to] = ::util::unpair(checkpoint_range, '-');
+            std::cout
+                << "Found a checkpoint file stating that the\n"
+                   "last saved block ranges from `"
+                << std::hex << std::setw(4) << std::setfill('0') << from
+                << "` to `"
+                << std::hex << std::setw(4) << std::setfill('0') << to
+                << "`\n"
+                   "and was written to `"
+                << checkpoint_output_filename << "`.\n\n"
+                << "Do you want to continue from "
+                << to
+                << "?\n\n"
+                   "  (y) to continue from checkpoint.\n"
+                   "  (r) to start over from 0000.\n"
+                   "  (q) to quit.\n\n"
+                   "  or type a 4-digit hex number to continue from there.\n\n"
+                   "[y/r/q/number]? ";
+            std::string answer;
+            std::cin >> answer;
+            if (answer == "y")
+            {
+                first_hash_prefix = std::stoul(to, nullptr, 16);
+            }
+            else if (answer == "r")
+            {
+                fs::remove(output_filename);
+                fs::remove(checkpoint_filename);
+            }
+            else if (answer == "q")
+            {
+                return EXIT_SUCCESS;
+            }
+            else
+            {
+                first_hash_prefix = std::stoul(answer, nullptr, 16);
+            }
+        }
     }
-    if (verbosity > 0)
+
+    if (first_hash_prefix != 0x0000)
     {
-        std::cout << "Total time: "
-                  << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
-                  << std::endl;
-        std::cout << "Sorting " << hibpdl.collection().size() << " entries ..." << std::endl;
+        if (first_hash_prefix > 0xffff)
+        {
+            std::cerr << "\u001b[31;1mERROR: invalid value, must be less than ffff.\u001b[0m" << std::endl;
+            return EXIT_FAILURE;
+        }
+        std::cout
+            << "OK, continuing from "
+            << std::hex << std::setw(4) << std::setfill('0')
+            << first_hash_prefix << std::dec << ".\n";
     }
-    hibp::collection_t const &collection = hibpdl.finalize();
-    if (verbosity > 0)
+    else if (fs::exists(checkpoint_filename))
     {
-        std::cout << "Total time: "
-                  << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
-                  << std::endl;
-        std::cout << "Writing " << hibpdl.collection().size() << " entries ..." << std::endl;
+        fs::remove(checkpoint_filename);
     }
-    std::ofstream out(output_filename, std::ios::binary | std::ios::trunc);
-    for (auto const &item : collection)
+
+    std::ofstream lock_file(lock_filename);
+    lock_file << getpid();
+    lock_file.close();
+
+    bool do_quit = false;
+    constexpr std::size_t max_hash_prefix = 1UL << (4 * 4); // 4 nibbles
+    for (std::size_t hash_prefix = first_hash_prefix;
+         hash_prefix < max_hash_prefix;
+         hash_prefix += hash_prefix_step)
     {
-        out.write(reinterpret_cast<char const*>(item.data.data()), item.data.size());
-        uint32_t const count = htonl(item.count);
-        out.write(reinterpret_cast<char const*>(&count), sizeof(count));
+        if (verbosity > 0)
+        {
+            std::cout
+                << "Fetching hashes from "
+                << std::hex << std::setw(4) << std::setfill('0')
+                << hash_prefix << "h to "
+                << std::hex << std::setw(4) << std::setfill('0')
+                << (hash_prefix + hash_prefix_step - 1) << "h ..."
+                << std::endl;
+        }
+        hibp::downloader hibpdl(hash_prefix, hash_prefix + hash_prefix_step);
+        hibpdl.set_verbosity(verbosity);
+        std::vector<std::thread> workers;
+        workers.reserve(num_threads);
+        timer t;
+        struct sigaction sigint_handler;
+        sigint_handler.sa_handler = signal_handler;
+        shutdown_handler = [&hibpdl, &do_quit](int) -> void
+        {
+            std::cout << "Shutting down ... " << std::endl;
+            hibpdl.stop();
+            do_quit = true;
+        };
+        sigemptyset(&sigint_handler.sa_mask);
+        sigint_handler.sa_flags = 0;
+        sigaction(SIGINT, &sigint_handler, NULL);
+        for (std::size_t i = 0; i < num_threads; ++i)
+        {
+            workers.emplace_back(&hibp::downloader::http_worker, &hibpdl);
+        }
+        for (auto &worker : workers)
+        {
+            worker.join();
+        }
+        if (do_quit)
+        {
+            std::cout << "Main thread about to exit ..." << std::endl;
+            break;
+        }
+        if (verbosity > 0)
+        {
+            std::cout << "\n"
+                      << "Total time: "
+                      << std::dec << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
+                      << std::endl;
+            std::cout << "Sorting " << hibpdl.collection().size() << " entries ..." << std::endl;
+        }
+        hibp::collection_t const &collection = hibpdl.finalize();
+        if (verbosity > 0)
+        {
+            std::cout << "Total time: "
+                      << std::dec << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
+                      << std::endl;
+            std::cout << "\u001b[33;1mWriting " << hibpdl.collection().size() << " entries to '" << output_filename << "' ...\u001b[0m" << std::endl;
+        }
+        std::ofstream out(output_filename, std::ios::binary | std::ios::app);
+        for (auto const &item : collection)
+        {
+            item.dump(out);
+        }
+        out.close();
+        if (verbosity > 0)
+        {
+            std::cout << "\u001b[33;1mWriting checkpoint file  '" << checkpoint_filename << "' ...\u001b[0m" << std::endl;
+        }
+        std::ofstream checkpoint(checkpoint_filename, std::ios::trunc);
+        checkpoint
+            << std::hex
+            << std::setw(4) << std::setfill('0')
+            << hash_prefix
+            << '-'
+            << std::setw(4) << std::setfill('0')
+            << (hash_prefix + hash_prefix_step)
+            << '\n'
+            << output_filename;
+        checkpoint.close();
+        if (verbosity > 0)
+        {
+            std::cout << "Total time: "
+                      << std::dec << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
+                      << std::endl;
+        }
     }
-    if (verbosity > 0)
+
+    if (!do_quit)
     {
-        std::cout << "Total time: "
-                  << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
-                  << std::endl;
+        fs::remove(checkpoint_filename);
     }
+    fs::remove(lock_filename);
     return EXIT_SUCCESS;
 }
