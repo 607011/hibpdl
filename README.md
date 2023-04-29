@@ -2,6 +2,8 @@
 
 **Fast, multi-threaded downloader for _';--have i been pwned?_ password hashes**
 
+**WARNING!** This is a preliminary version that reads all password hashes into memory before writing them to disk.
+You need at least 22 GByte free memory to run this tool.
 
 ## Prerequisites
 
