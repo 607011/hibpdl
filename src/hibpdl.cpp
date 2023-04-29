@@ -51,6 +51,10 @@ namespace hibp
     {
         httplib::Client cli(ApiUrl);
         cli.set_compress(true);
+        httplib::Headers headers{
+            {"User-Agent", DefaultUserAgent}
+        };
+        cli.set_default_headers(headers);
 
         while (!do_quit_)
         {
