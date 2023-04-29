@@ -89,6 +89,7 @@ namespace hibp
                     }
                     else
                     {
+                        ss << "\u001b[31;1mERROR: HTTP status code = " << res->status << "\u001b[0m";
                         error(ss.str());
                     }
                 }
