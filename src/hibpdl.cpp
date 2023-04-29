@@ -48,10 +48,6 @@ namespace hibp
 
     void downloader::stop()
     {
-        if (verbosity_ > 1)
-        {
-            log("hibp::downloader::stop()");
-        }
         do_quit_.store(true);
     }
 

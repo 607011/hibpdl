@@ -82,9 +82,7 @@ namespace
     fs::path get_home_directory()
     {
 #if _MSC_VER
-        std::ostringstream os;
-        os << getenv("HOMEDRIVE") << getenv("HOMEPATH");
-        return fs::path(os.str());
+        return fs::path(getenv("HOMEDRIVE")) / fs::path(getenv("HOMEPATH"));
 #else
         return fs::path(getenv("HOME"));
 #endif
@@ -311,6 +309,23 @@ int main(int argc, char *argv[])
             {
                 first_hash_prefix = std::stoul(answer, nullptr, 16);
             }
+        }
+    }
+    else if (fs::exists(output_filename) && !yes)
+    {
+        std::cout
+            << "The output file `" << output_filename << "` already exists.\n"
+               "Do you want to overwrite it?\n"
+               "[y/n]? ";
+        char c;
+        std::cin >> c;
+        if (c == 'y')
+        {
+            fs::remove(output_filename);
+        }
+        else
+        {
+            return EXIT_FAILURE;
         }
     }
 
