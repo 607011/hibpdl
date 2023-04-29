@@ -97,7 +97,7 @@ namespace hibp
             {
                 std::lock_guard<std::mutex> lock(collection_mutex_);
                 collection_.insert(collection_.end(), hashes.begin(), hashes.end());
-                ss << "\u001b[32;1mHashes collected: " << collection_.size() << "\u001b[0m";
+                ss << "\u001b[32;1mTotal hashes collected: " << collection_.size() << "\u001b[0m";
             }
             log(ss.str());
         }
