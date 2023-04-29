@@ -1,5 +1,5 @@
 # HIBPDL++
 
-**Fast, multi-threaded downloader for ';--have i been pwned? password hashes**
+**Fast, multi-threaded downloader for _';--have i been pwned?_ password hashes**
 
 
