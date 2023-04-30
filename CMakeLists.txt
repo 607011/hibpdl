@@ -40,7 +40,7 @@ set(HIBPDL_SOURCES
   src/util.cpp
 )
 
-if (WIN32)
+if(WIN32)
   set(HIBPDL_SOURCES ${HIBPDL_SOURCES} 3rdparty/getopt-for-windows/getopt.c)
   set(PROJECT_INCLUDE_DIRS ${PROJECT_INCLUDE_DIRS} 3rdparty/getopt-for-windows)
 endif()
@@ -53,6 +53,14 @@ target_include_directories(hibpdl
   3rdparty/cpp-httplib
   build
 )
+
+if(UNIX)
+  if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_custom_command(TARGET hibpdl
+      POST_BUILD
+      COMMAND strip hibpdl)
+  endif()
+endif(UNIX)
 
 target_link_libraries(hibpdl
   ${OPENSSL_LIBRARIES}
