@@ -194,8 +194,10 @@ int main(int argc, char *argv[])
             << lock_filename
             << " and retry.\n"
                "\u001b[31;1m</WARNING>\u001b[0m\n\n"
-               "Do you want to delete the lock file and proceed?\n"
-               "[y/n]? ";
+               "Do you want to delete the lock file and proceed?\n\n"
+               "  (n) to quit\n"
+               "  (y) to delete and proceed\n"
+               "\n[n/y]? ";
         char c;
         std::cin >> c;
         if (c == 'y')
@@ -316,8 +318,8 @@ int main(int argc, char *argv[])
                    "  (y) to continue from checkpoint.\n"
                    "  (r) to start over from 0000.\n"
                    "  (q) to quit.\n\n"
-                   "  or type a 4-digit hex number to continue from there.\n\n"
-                   "[y/r/q/number]? ";
+                   "  or type a 4-digit hex number to continue from there.\n"
+                   "\n[y/r/q/number]? ";
             std::string answer;
             std::cin >> answer;
             if (answer == "y")
@@ -346,9 +348,9 @@ int main(int argc, char *argv[])
             << output_filename
             << " already exists.\n"
                "Do you want to overwrite it?\n\n"
+               "  (n)o to quit\n"
                "  (y)es to overwrite\n"
-               "  (n)o to quit\n\n"
-               "[n/y]? ";
+               "\n[n/y]? ";
         char c;
         std::cin >> c;
         if (c == 'y')
