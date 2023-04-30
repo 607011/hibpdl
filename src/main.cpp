@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
         hibpdl.set_quiet(quiet);
         std::vector<std::thread> workers;
         workers.reserve(num_threads);
-        timer t;
+        util::timer t;
         struct sigaction sigint_handler;
         sigint_handler.sa_handler = signal_handler;
         shutdown_handler = [&hibpdl, &do_quit, verbosity](int)
