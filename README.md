@@ -2,7 +2,7 @@
 
 **Fast, multi-threaded downloader for _';--have i been pwned?_ password hashes**
 
-This software retrieves all available SHA1 password hashes provided by the [haveibeenpwned.com](https://haveibeenpwned.com/) API. It converts them into a binary format so that each hash merely allocates 20 bytes (plus 4 bytes for a number that states how many times the hash was found in leaked password/hash lists).
+**HIBPDL++** retrieves all available SHA1 password hashes accessible through the [haveibeenpwned.com](https://haveibeenpwned.com/) API. It converts them into a binary format so that each hash allocates 20 bytes (plus 4 bytes for a number (big-endian) that states how many times the hash was found in leaked password/hash lists).
 
 ## Prerequisites
 
