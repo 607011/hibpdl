@@ -96,6 +96,17 @@ namespace hibp
             hash_count_.count = num;
         }
 
+        void convert_hash()
+        {
+            std::size_t hcidx = 0;
+            for (std::size_t i = 0; i < hex_hash_.size(); i += 2)
+            {
+                std::uint8_t hi_nibble = ::util::hex2nibble(hex_hash_.at(i));
+                std::uint8_t lo_nibble = ::util::hex2nibble(hex_hash_.at(i + 1));
+                hash_count_.data[hcidx++] = (hi_nibble << 4) | lo_nibble;
+            }
+        }
+
         void consume_hash()
         {
             std::size_t i = 5; // starting from 5th hex digit
@@ -110,13 +121,7 @@ namespace hibp
             };
             assert(i == hex_hash_.size());
             assert(peek() == COLON);
-            std::size_t hcidx = 0;
-            for (std::size_t i = 0; i < hex_hash_.size(); i += 2)
-            {
-                std::uint8_t hi_nibble = ::util::hex2nibble(hex_hash_.at(i));
-                std::uint8_t lo_nibble = ::util::hex2nibble(hex_hash_.at(i + 1));
-                hash_count_.data[hcidx++] = (hi_nibble << 4) | lo_nibble;
-            }
+            convert_hash();
             advance(); // step over COLON
             consume_number();
         }
@@ -130,13 +135,13 @@ namespace hibp
                 advance();
                 break;
             case LF:
-                result_.push_back(hash_count_);
                 advance();
                 break;
             default:
                 if (is_hexdigit(c))
                 {
                     consume_hash();
+                    result_.push_back(hash_count_);
                 }
                 else // e.g. ':'
                 {

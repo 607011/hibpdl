@@ -9,6 +9,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <getopt.h>
 #include <iostream>
 #include <iterator>
@@ -48,13 +49,14 @@ namespace
     const std::string DefaultOutputFilename = "hash+count.bin";
     const std::string DefaultCheckpointFilename = "checkpoint";
     const std::string DefaultLockFilename = "lock";
-    constexpr std::uint32_t DefaultHashPrefixStep = 0x0040;
+    constexpr std::size_t DefaultHashPrefixStep = 0x0040;
+    constexpr std::size_t MaxHashPrefix = 1UL << (4 * 4);
 
     void about()
     {
         std::cout
-            << PROJECT_NAME << "++ " << PROJECT_VERSION
-            << " - Fast, multithreaded downloader for \"';--have i been pwned?\" hashes.\n"
+            << PROJECT_NAME << "++ " << PROJECT_VERSION << " - "
+            << "Fast, multithreaded downloader for \"';--have i been pwned?\" hashes.\n"
             << "Copyright (c) 2023 Oliver Lau\n";
     }
 
@@ -88,13 +90,13 @@ namespace
 #endif
     }
 
-    void brief_usage()
-    {
-        std::cout
-            << "USAGE: " << PROJECT_NAME << " [options] base_url\n"
-            << "\n"
-            << "See `" << PROJECT_NAME << " --help` for options\n";
-    }
+    // void brief_usage()
+    // {
+    //     std::cout
+    //         << "USAGE: " << PROJECT_NAME << " [options]\n"
+    //         << "\n"
+    //         << "See `" << PROJECT_NAME << " --help` for options\n";
+    // }
 
     void usage()
     {
@@ -108,29 +110,36 @@ namespace
                "\n"
                "  -o FILENAME [--output ...]\n"
                "    Write result to FILENAME.\n"
-               "    Default: "
+               "    Default: `"
             << DefaultOutputFilename
-            << "\n\n"
+            << "`\n\n"
                "  -v [--verbose]\n"
                "    Increase verbosity of output.\n"
                "\n"
                "  -t N [--threads N]\n"
                "    Run in N threads (default: "
-            << std::dec << DefaultNumThreads << ")"
+            << std::dec << std::max(static_cast<std::size_t>(std::thread::hardware_concurrency()), DefaultNumThreads) << ")"
             << "\n"
                "\n"
-               "  -p PREFIX [--first-prefix]\n"
+               "  -P PREFIX [--first-prefix]\n"
                "    Begin reading a prefix PREFIX.\n"
                "    PREFIX must be a hexadecimal number.\n"
                "\n"
-               "  -s STEP [--prefix-step]\n"
+               "  -L PREFIX [--last-prefix]\n"
+               "    Read until prefix PREFIX.\n"
+               "    PREFIX must be a hexadecimal number.\n"
+               "\n"
+               "  -S STEP [--prefix-step]\n"
                "    Read data in chunks of STEP prefix steps.\n"
                "    STEP must be a hexadecimal number.\n"
-               "    Default: "
+               "    Default: `"
             << std::hex << std::setw(4) << std::setfill('0') << DefaultHashPrefixStep
-            << "\n"
+            << "`\n"
                "  -y\n"
                "    Answer YES to all questions.\n"
+               "\n"
+               "  -q [--quiet]\n"
+               "    Don't display progress indicator.\n"
                "\n"
                "  --help\n"
                "    Display this help\n"
@@ -149,11 +158,15 @@ void signal_handler(int signal)
 
 int main(int argc, char *argv[])
 {
-    std::size_t num_threads{DefaultNumThreads};
-    std::string output_filename(DefaultOutputFilename);
-    std::uint32_t first_hash_prefix{0};
-    std::uint32_t hash_prefix_step{DefaultHashPrefixStep};
+    fs::path output_filename(DefaultOutputFilename);
+    std::size_t first_hash_prefix{0};
+    std::size_t last_hash_prefix{MaxHashPrefix};
+    std::size_t hash_prefix_step{DefaultHashPrefixStep};
+    std::size_t num_threads{std::max(
+        static_cast<std::size_t>(std::thread::hardware_concurrency()),
+        DefaultNumThreads)};
     bool yes = false;
+    bool quiet = false;
     int verbosity = 0;
 
     fs::path config_directory{get_home_directory() / fs::path(".hibpdl")};
@@ -202,10 +215,14 @@ int main(int argc, char *argv[])
             {"output", required_argument, 0, 'o'},
             {"verbose", no_argument, 0, 'v'},
             {"threads", required_argument, 0, 't'},
+            {"first-prefix", required_argument, 0, 'P'},
+            {"last-prefix", required_argument, 0, 'L'},
+            {"prefix-stop", required_argument, 0, 'S'},
             {"help", no_argument, 0, '?'},
+            {"quiet", no_argument, 0, 'q'},
             {"license", no_argument, 0, 0},
             {0, 0, 0, 0}};
-        int c = getopt_long(argc, argv, "?d:t:vy", long_options, &option_index);
+        int c = getopt_long(argc, argv, "?d:t:P:L:S:vy", long_options, &option_index);
         if (c == -1)
         {
             break;
@@ -225,24 +242,35 @@ int main(int argc, char *argv[])
         case 't':
             num_threads = static_cast<unsigned int>(atoi(optarg));
             break;
-        case 'p':
+        case 'P':
             first_hash_prefix = std::stoul(optarg, nullptr, 16);
-            if (first_hash_prefix > 0xffff)
+            if (first_hash_prefix >= MaxHashPrefix)
             {
-                std::cerr << "\u001b[31;1mERROR: invalid value, must be less than FFFFh.\u001b[0m" << std::endl;
+                std::cerr << "\u001b[31;1mERROR: invalid value, must be less <= FFFFh.\u001b[0m" << std::endl;
                 return EXIT_FAILURE;
             }
             break;
-        case 's':
-            hash_prefix_step = std::stoul(optarg, nullptr, 16);
-            if (hash_prefix_step > 0x8000)
+        case 'L':
+            last_hash_prefix = std::stoul(optarg, nullptr, 16);
+            if (last_hash_prefix >= MaxHashPrefix)
             {
-                std::cerr << "\u001b[31;1mERROR: invalid value, must be less than 8000h.\u001b[0m" << std::endl;
+                std::cerr << "\u001b[31;1mERROR: invalid value, must be less <= FFFFh.\u001b[0m" << std::endl;
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'S':
+            hash_prefix_step = std::stoul(optarg, nullptr, 16);
+            if (hash_prefix_step >= MaxHashPrefix)
+            {
+                std::cerr << "\u001b[31;1mERROR: invalid value, must be less <= FFFFh.\u001b[0m" << std::endl;
                 return EXIT_FAILURE;
             }
             break;
         case 'y':
             yes = true;
+            break;
+        case 'q':
+            quiet = true;
             break;
         case 'v':
             ++verbosity;
@@ -261,7 +289,7 @@ int main(int argc, char *argv[])
     }
     if (verbosity > 1 && !yes)
     {
-        std::cout << "Probing for checkpoint file `" << checkpoint_filename << "` ...\n";
+        std::cout << "Probing for checkpoint file " << checkpoint_filename << " ...\n";
     }
     if (fs::exists(checkpoint_filename) && !yes)
     {
@@ -314,9 +342,13 @@ int main(int argc, char *argv[])
     else if (fs::exists(output_filename) && !yes)
     {
         std::cout
-            << "The output file `" << output_filename << "` already exists.\n"
-               "Do you want to overwrite it?\n"
-               "[y/n]? ";
+            << "The output file "
+            << output_filename
+            << " already exists.\n"
+               "Do you want to overwrite it?\n\n"
+               "  (y)es to overwrite\n"
+               "  (n)o to quit\n\n"
+               "[n/y]? ";
         char c;
         std::cin >> c;
         if (c == 'y')
@@ -325,7 +357,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            return EXIT_FAILURE;
+            return EXIT_SUCCESS;
         }
     }
 
@@ -351,38 +383,44 @@ int main(int argc, char *argv[])
     lock_file.close();
 
     bool do_quit = false;
-    constexpr std::size_t max_hash_prefix = 1UL << (4 * 4); // 4 nibbles
     for (std::size_t hash_prefix = first_hash_prefix;
-         hash_prefix < max_hash_prefix;
+         hash_prefix < last_hash_prefix;
          hash_prefix += hash_prefix_step)
     {
         if (verbosity > 0)
         {
             std::cout
-                << "Fetching hashes from "
+                << "Fetching hashes in ["
                 << std::hex << std::setw(4) << std::setfill('0')
-                << hash_prefix << "h to "
+                << hash_prefix << "0h, "
                 << std::hex << std::setw(4) << std::setfill('0')
-                << (hash_prefix + hash_prefix_step - 1) << "h ..."
+                << (std::min(hash_prefix + hash_prefix_step, MaxHashPrefix) - 1) << "fh] ..."
                 << std::endl;
         }
-        hibp::downloader hibpdl(hash_prefix, hash_prefix + hash_prefix_step);
+        hibp::downloader hibpdl{
+            hash_prefix,
+            std::min(hash_prefix + hash_prefix_step, MaxHashPrefix)};
         hibpdl.set_verbosity(verbosity);
+        hibpdl.set_quiet(quiet);
         std::vector<std::thread> workers;
         workers.reserve(num_threads);
         timer t;
         struct sigaction sigint_handler;
         sigint_handler.sa_handler = signal_handler;
-        shutdown_handler = [&hibpdl, &do_quit](int) -> void
+        shutdown_handler = [&hibpdl, &do_quit, verbosity](int)
         {
-            std::cout << "Shutting down ... " << std::endl;
+            if (verbosity > 0)
+            {
+                std::cout << "Shutting down ... " << std::endl;
+            }
             hibpdl.stop();
             do_quit = true;
         };
         sigemptyset(&sigint_handler.sa_mask);
         sigint_handler.sa_flags = 0;
         sigaction(SIGINT, &sigint_handler, NULL);
-        for (std::size_t i = 0; i < num_threads; ++i)
+        std::size_t start_thread_count = std::min(num_threads, hibpdl.queue_size());
+        for (std::size_t i = 0; i < start_thread_count; ++i)
         {
             workers.emplace_back(&hibp::downloader::http_worker, &hibpdl);
         }
@@ -392,7 +430,10 @@ int main(int argc, char *argv[])
         }
         if (do_quit)
         {
-            std::cout << "Main thread about to exit ..." << std::endl;
+            if (verbosity > 1)
+            {
+                std::cout << "Main thread about to exit ..." << std::endl;
+            }
             break;
         }
         if (verbosity > 0)
@@ -409,7 +450,7 @@ int main(int argc, char *argv[])
             std::cout << "Total time: "
                       << std::dec << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
                       << std::endl;
-            std::cout << "\u001b[33;1mWriting " << hibpdl.collection().size() << " entries to '" << output_filename << "' ...\u001b[0m" << std::endl;
+            std::cout << "\u001b[33;1mWriting " << hibpdl.collection().size() << " entries to " << output_filename << " ...\u001b[0m" << std::endl;
         }
         std::ofstream out(output_filename, std::ios::binary | std::ios::app);
         for (auto const &item : collection)
@@ -419,7 +460,7 @@ int main(int argc, char *argv[])
         out.close();
         if (verbosity > 0)
         {
-            std::cout << "\u001b[33;1mWriting checkpoint file  '" << checkpoint_filename << "' ...\u001b[0m" << std::endl;
+            std::cout << "\u001b[33;1mWriting checkpoint file " << checkpoint_filename << " ...\u001b[0m" << std::endl;
         }
         std::ofstream checkpoint(checkpoint_filename, std::ios::trunc);
         checkpoint

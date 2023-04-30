@@ -39,6 +39,11 @@ namespace hibp
 
         void http_worker();
 
+        inline void set_quiet(bool quiet)
+        {
+            quiet_ = quiet;
+        }
+
         inline void set_verbosity(int verbosity)
         {
             verbosity_ = verbosity;
@@ -73,8 +78,10 @@ namespace hibp
         std::mutex collection_mutex_;
         std::atomic_bool do_quit_ = ATOMIC_VAR_INIT(false);
         int verbosity_{0};
+        bool quiet_{false};
 
         void log(std::string const &message);
+        void warning(std::string const &message);
         void error(std::string const &message);
     };
 

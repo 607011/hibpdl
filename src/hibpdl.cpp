@@ -16,10 +16,16 @@
 
 namespace hibp
 {
-    const std::string downloader::DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
-    const std::string downloader::ApiUrl = "https://api.pwnedpasswords.com";
+    const std::string downloader::DefaultUserAgent =
+        std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
+    const std::string downloader::ApiUrl =
+        "https://api.pwnedpasswords.com";
+    constexpr std::size_t MaxHashesInDownload = 2'000;
 
-    downloader::downloader(std::size_t first_prefix, std::size_t last_prefix, std::size_t max_hash_count)
+    downloader::downloader(
+        std::size_t first_prefix,
+        std::size_t last_prefix,
+        std::size_t max_hash_count)
     {
         collection_.reserve(max_hash_count);
         for (std::size_t i = first_prefix; i < last_prefix; ++i)
@@ -37,7 +43,13 @@ namespace hibp
     void downloader::log(std::string const &message)
     {
         const std::lock_guard<std::mutex> lock(output_mutex_);
-        std::cout << '\r' << message << "\u001b[K" << std::endl;
+        std::cout << message << std::endl;
+    }
+
+    void downloader::warning(std::string const &message)
+    {
+        const std::lock_guard<std::mutex> lock(output_mutex_);
+        std::cout << message << std::endl;
     }
 
     void downloader::error(std::string const &message)
@@ -68,7 +80,10 @@ namespace hibp
                 {
                     if (verbosity_ > 1)
                     {
-                        std::cout << "Queue is empty; thread ID " << std::this_thread::get_id() << " ..." << std::endl;
+                        std::cout
+                            << "Queue is empty; thread ID "
+                            << std::this_thread::get_id()
+                            << " ..." << std::endl;
                     }
                     return;
                 }
@@ -79,7 +94,7 @@ namespace hibp
                 }
             }
             collection_t hashes;
-            hashes.reserve(10'000);
+            hashes.reserve(MaxHashesInDownload);
             std::size_t nibble = 0x0;
             while (nibble <= 0xf)
             {
@@ -88,7 +103,9 @@ namespace hibp
                     if (verbosity_ > 1)
                     {
                         std::ostringstream ss;
-                        ss << "Thread " << std::this_thread::get_id() << " quitting ...";
+                        ss << "Thread "
+                           << std::this_thread::get_id()
+                           << " quitting ...";
                         log(ss.str());
                     }
                     return;
@@ -107,11 +124,16 @@ namespace hibp
                         ss << h.data << ':' << std::dec << h.count;
                         hashes.insert(hashes.end(), result.begin(), result.end());
                         ++nibble;
-                        log(ss.str());
+                        if (verbosity_ > 0)
+                        {
+                            log(ss.str());
+                        }
                     }
                     else
                     {
-                        ss << "\u001b[31;1mERROR: HTTP status code = " << res->status << "\u001b[0m";
+                        ss << "\u001b[31;WARNING: HTTP status code = "
+                           << res->status
+                           << "\u001b[0m";
                         error(ss.str());
                     }
                 }
@@ -122,14 +144,18 @@ namespace hibp
                 collection_.insert(collection_.end(), hashes.begin(), hashes.end());
                 if (verbosity_ > 0)
                 {
-                    ss << "\u001b[32;1mTotal hashes collected: " << collection_.size() << "\u001b[0m";
+                    ss << "\u001b[32;1mTotal hashes collected: "
+                       << collection_.size()
+                       << "\u001b[0m";
                     log(ss.str());
                 }
             }
         }
         if (verbosity_ > 1)
         {
-            std::cout << "http_worker() with thread ID " << std::this_thread::get_id() << " ..." << std::endl;
+            std::cout << "http_worker() with thread ID "
+                      << std::this_thread::get_id()
+                      << " ..." << std::endl;
         }
     }
 }
