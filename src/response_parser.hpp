@@ -93,18 +93,8 @@ namespace hibp
                 num *= 10;
                 num += advance() - '0';
             };
+            assert(num > 0);
             hash_count_.count = num;
-        }
-
-        void convert_hash()
-        {
-            std::size_t hcidx = 0;
-            for (std::size_t i = 0; i < hex_hash_.size(); i += 2)
-            {
-                std::uint8_t hi_nibble = ::util::hex2nibble(hex_hash_.at(i));
-                std::uint8_t lo_nibble = ::util::hex2nibble(hex_hash_.at(i + 1));
-                hash_count_.data[hcidx++] = (hi_nibble << 4) | lo_nibble;
-            }
         }
 
         void consume_hash()
@@ -121,7 +111,13 @@ namespace hibp
             };
             assert(i == hex_hash_.size());
             assert(peek() == COLON);
-            convert_hash();
+            std::size_t hcidx = 0;
+            for (std::size_t i = 0; i < hex_hash_.size(); i += 2)
+            {
+                std::uint8_t hi_nibble = ::util::hex2nibble(hex_hash_.at(i));
+                std::uint8_t lo_nibble = ::util::hex2nibble(hex_hash_.at(i + 1));
+                hash_count_.data[hcidx++] = (hi_nibble << 4) | lo_nibble;
+            }
             advance(); // step over COLON
             consume_number();
         }
