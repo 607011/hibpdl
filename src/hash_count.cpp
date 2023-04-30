@@ -1,4 +1,14 @@
+/*
+ * HIBPDL++ - Fast, multithreaded downloader for HaveIBeenPwned hashes
+ * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
+ */
+
 #include <iomanip>
+
+#if defined(__unix__)
+#include <arpa/inet.h>
+#endif
+
 #include "hash_count.hpp"
 
 namespace hibp
