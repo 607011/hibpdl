@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <ctype.h>
 #include <string>
 #include <string_view>
 
@@ -80,8 +81,9 @@ namespace hibp
             return (c >= '0' && c <= '9');
         }
 
-        static inline bool is_hexdigit(char const c)
+        static inline bool is_hexdigit(char c)
         {
+            c = std::toupper(c);
             return is_digit(c) || (c >= 'A' && c <= 'F');
         }
 
