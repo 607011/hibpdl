@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
             first_hash_prefix = std::stoul(optarg, nullptr, 16);
             if (first_hash_prefix >= MaxHashPrefix)
             {
-                std::cerr << "\u001b[31;1mERROR: invalid value, must be less <= FFFFh.\u001b[0m" << std::endl;
+                std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
                 return EXIT_FAILURE;
             }
             break;
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
             last_hash_prefix = std::stoul(optarg, nullptr, 16);
             if (last_hash_prefix >= MaxHashPrefix)
             {
-                std::cerr << "\u001b[31;1mERROR: invalid value, must be less <= FFFFh.\u001b[0m" << std::endl;
+                std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
                 return EXIT_FAILURE;
             }
             break;
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
             hash_prefix_step = std::stoul(optarg, nullptr, 16);
             if (hash_prefix_step >= MaxHashPrefix)
             {
-                std::cerr << "\u001b[31;1mERROR: invalid value, must be less <= FFFFh.\u001b[0m" << std::endl;
+                std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
                 return EXIT_FAILURE;
             }
             break;
