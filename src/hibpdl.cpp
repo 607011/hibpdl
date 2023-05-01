@@ -16,10 +16,28 @@
 
 namespace hibp
 {
+    namespace
+    {
+        std::string get_os_name()
+        {
+#if defined(_MSC_VER)
+            return "Windows";
+#elif defined(__APPLE__) || defined(__MACH__)
+            return "macOS";
+#elif defined(__linux__)
+            return "Linux";
+#elif defined(__FreeBSD__)
+            return "FreeBSD";
+#elif defined(__unix) || defined(__unix__)
+            return "Unix";
+#else
+            return "Unknown";
+#endif
+        }
+    }
     const std::string downloader::DefaultUserAgent =
-        std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
-    const std::string downloader::ApiUrl =
-        "https://api.pwnedpasswords.com";
+        std::string(PROJECT_NAME) + "/" + PROJECT_VERSION + " (" + get_os_name() + ") cpp-httplib";
+    const std::string downloader::ApiUrl = "https://api.pwnedpasswords.com";
     constexpr std::size_t MaxHashesInDownload = 2'000;
 
     downloader::downloader(
@@ -78,12 +96,13 @@ namespace hibp
                 std::lock_guard<std::mutex> lock(queue_mutex_);
                 if (hash_queue_.empty())
                 {
-                    if (verbosity_ > 1)
+                    if (verbosity_ > 2)
                     {
-                        std::cout
-                            << "Queue is empty; thread ID "
-                            << std::this_thread::get_id()
-                            << " ..." << std::endl;
+                        std::ostringstream os;
+                        os << "Queue is empty; thread ID "
+                           << std::this_thread::get_id()
+                           << " ..." << std::endl;
+                        log(os.str());
                     }
                     return;
                 }
@@ -151,11 +170,13 @@ namespace hibp
                 }
             }
         }
-        if (verbosity_ > 1)
+        if (verbosity_ > 2)
         {
-            std::cout << "http_worker() with thread ID "
-                      << std::this_thread::get_id()
-                      << " ..." << std::endl;
+            std::ostringstream os;
+            os << "http_worker() with thread ID "
+               << std::this_thread::get_id()
+               << " ..." << std::endl;
+            log(os.str());
         }
     }
 }
