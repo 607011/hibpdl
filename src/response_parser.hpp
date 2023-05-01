@@ -83,7 +83,7 @@ namespace hibp
 
         static inline bool is_hexdigit(char c)
         {
-            c = std::toupper(c);
+            c = static_cast<char>(std::toupper(c));
             return is_digit(c) || (c >= 'A' && c <= 'F');
         }
 
@@ -114,10 +114,10 @@ namespace hibp
             assert(i == hex_hash_.size());
             assert(peek() == COLON);
             std::size_t hcidx = 0;
-            for (std::size_t i = 0; i < hex_hash_.size(); i += 2)
+            for (std::size_t j = 0; j < hex_hash_.size(); j += 2)
             {
-                std::uint8_t hi_nibble = ::util::hex2nibble(hex_hash_.at(i));
-                std::uint8_t lo_nibble = ::util::hex2nibble(hex_hash_.at(i + 1));
+                std::uint8_t hi_nibble = ::util::hex2nibble(hex_hash_.at(j));
+                std::uint8_t lo_nibble = ::util::hex2nibble(hex_hash_.at(j + 1));
                 hash_count_.data[hcidx++] = (hi_nibble << 4) | lo_nibble;
             }
             advance(); // step over COLON
