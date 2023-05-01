@@ -482,7 +482,7 @@ int main(int argc, char *argv[])
             << std::setw(4) << std::setfill('0')
             << (hash_prefix + hash_prefix_step)
             << '\n'
-            << output_filename;
+            << output_filename.generic_string();
         checkpoint.close();
         if (verbosity > 0)
         {
