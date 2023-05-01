@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
     }
     if (verbosity > 1 && !yes)
     {
-        std::cout << "Probing for checkpoint file " << checkpoint_filename << " ...\n";
+        std::cout << "Probing for checkpoint file " << checkpoint_filename << " ... ";
     }
     if (fs::exists(checkpoint_filename) && !yes)
     {
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
         {
             auto [from, to] = ::util::unpair(checkpoint_range, '-');
             std::cout
-                << "Found a checkpoint file stating that the\n"
+                << "\nFound a checkpoint file stating that the\n"
                    "last saved block ranges from `"
                 << std::hex << std::setw(4) << std::setfill('0') << from
                 << "` to `"
@@ -342,7 +342,15 @@ int main(int argc, char *argv[])
             }
         }
     }
-    else if (fs::exists(output_filename) && !yes)
+    else 
+    {
+        if (verbosity > 1 && !yes)
+        {
+            std::cout << "not found.\n";
+        }
+    }
+
+    if (fs::exists(output_filename) && !fs::exists(checkpoint_filename) && !yes)
     {
         std::cout
             << "The output file "
@@ -487,13 +495,17 @@ int main(int argc, char *argv[])
         if (verbosity > 0)
         {
             std::cout << "Total time: "
-                      << std::dec << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
+                      << std::dec << chrono::duration_cast<chrono::seconds>(t.elapsed()).count() << " s"
                       << std::endl;
         }
     }
 
     if (!do_quit)
     {
+        if (verbosity > 1)
+        {
+            std::cout << "Removing checkpoint file ... \n";
+        }
         fs::remove(checkpoint_filename);
     }
     fs::remove(lock_filename);
