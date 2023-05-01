@@ -91,14 +91,6 @@ namespace
 #endif
     }
 
-    // void brief_usage()
-    // {
-    //     std::cout
-    //         << "USAGE: " << PROJECT_NAME << " [options]\n"
-    //         << "\n"
-    //         << "See `" << PROJECT_NAME << " --help` for options\n";
-    // }
-
     void usage()
     {
         std::cout
