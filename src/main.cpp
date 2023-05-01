@@ -26,6 +26,7 @@
 
 #if _MSC_VER
 #include <Windows.h>
+#include <signal.h>
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
 #else
@@ -381,9 +382,14 @@ int main(int argc, char *argv[])
     }
 
     std::ofstream lock_file(lock_filename);
+#ifdef _MSC_VER
+    lock_file << _getpid();
+#else
     lock_file << getpid();
+#endif
     lock_file.close();
 
+    util::timer t;
     bool do_quit = false;
     for (std::size_t hash_prefix = first_hash_prefix;
          hash_prefix < last_hash_prefix;
@@ -406,21 +412,24 @@ int main(int argc, char *argv[])
         hibpdl.set_quiet(quiet);
         std::vector<std::thread> workers;
         workers.reserve(num_threads);
-        util::timer t;
-        struct sigaction sigint_handler;
-        sigint_handler.sa_handler = signal_handler;
         shutdown_handler = [&hibpdl, &do_quit, verbosity](int)
         {
             if (verbosity > 0)
             {
                 std::cout << "Shutting down ... " << std::endl;
             }
-            hibpdl.stop();
             do_quit = true;
+            hibpdl.stop();
         };
+#if defined(__unix__) || defined(__linux__)
+        struct sigaction sigint_handler;
+        sigint_handler.sa_handler = signal_handler;
         sigemptyset(&sigint_handler.sa_mask);
         sigint_handler.sa_flags = 0;
         sigaction(SIGINT, &sigint_handler, NULL);
+#elif defined(_MSC_VER)
+        signal(SIGINT, signal_handler);
+#endif
         std::size_t start_thread_count = std::min(num_threads, hibpdl.queue_size());
         for (std::size_t i = 0; i < start_thread_count; ++i)
         {
