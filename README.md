@@ -7,18 +7,16 @@
 ## Prerequisites
 
 - Git
+- CMake ≥ 3.16
 - OpenSSL libraries ≥ 1.1.1t
 
 ### Windows
 
-Install OpenSSL:
-
 ```
-winget install OpenSSL
-winget install Ninja-build.Ninja
+winget install Git.Git
+winget install Kitware.CMake
+winget install ShiningLight.OpenSSL
 ```
-
-If you don't want to use the Ninja build tool, you can omit its installation, but must then replace `Ninja` with `"NMake Makefiles"` in the `cmake` command below.
 
 ### macOS
 
@@ -29,7 +27,7 @@ brew install openssl git cmake ninja
 ### Linux (Ubuntu)
 
 ```
-sudo apt install libssl3 git cmake ninja-build
+sudo apt install libssl3 libssl-dev git cmake ninja-build
 ```
 
 ## Build
@@ -71,7 +69,7 @@ md build
 cd build
 git submodule init
 git submodule update
-cmake -G Ninja -DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" ..
+cmake -DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" ..
 cmake --build . --config Release
 ```
 
