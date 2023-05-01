@@ -8,6 +8,9 @@
 #if defined(__unix__) || defined(__APPLE__)
 #include <arpa/inet.h>
 #endif
+#ifdef _MSC_VER
+#include <winsock.h>
+#endif
 
 #include "hash_count.hpp"
 
