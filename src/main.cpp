@@ -17,6 +17,7 @@
 #include <mutex>
 #include <numeric>
 #include <thread>
+#include <signal.h>
 #include <string>
 #include <vector>
 
@@ -26,11 +27,9 @@
 
 #if _MSC_VER
 #include <Windows.h>
-#include <signal.h>
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
 #else
-#include <signal.h>
 #include <unistd.h>
 #endif
 
