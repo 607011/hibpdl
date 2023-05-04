@@ -1,6 +1,6 @@
 [submodule "3rdparty/cpp-httplib"]
 	path = 3rdparty/cpp-httplib
 	url = https://github.com/yhirose/cpp-httplib.git
-[submodule "3rdparty/getopt-for-windows"]
-	path = 3rdparty/getopt-for-windows
-	url = https://github.com/Chunde/getopt-for-windows.git
+[submodule "3rdparty/getopt-cpp"]
+	path = 3rdparty/getopt-cpp
+	url = https://github.com/607011/getopt-cpp.git

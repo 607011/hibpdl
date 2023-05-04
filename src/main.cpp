@@ -10,7 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
-#include <getopt.h>
+#include <getopt.hpp>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -202,80 +202,88 @@ int main(int argc, char *argv[])
         }
     }
 
-    while (true)
-    {
-        int option_index = 0;
-        static struct option long_options[] = {
-            {"output", required_argument, 0, 'o'},
-            {"verbose", no_argument, 0, 'v'},
-            {"threads", required_argument, 0, 't'},
-            {"first-prefix", required_argument, 0, 'P'},
-            {"last-prefix", required_argument, 0, 'L'},
-            {"prefix-stop", required_argument, 0, 'S'},
-            {"help", no_argument, 0, '?'},
-            {"quiet", no_argument, 0, 'q'},
-            {"license", no_argument, 0, 0},
-            {0, 0, 0, 0}};
-        int c = getopt_long(argc, argv, "?d:t:P:L:S:vy", long_options, &option_index);
-        if (c == -1)
-        {
-            break;
-        }
-        switch (c)
-        {
-        case 0:
-            if (strcasecmp(optarg, "license") == 0)
+    using argparser = argparser::argparser;
+    argparser opt(argc, argv);
+    opt.reg({"-o", "--output"}, argparser::required_argument,
+            [&output_filename](std::string const &filename)
+            {
+                output_filename = filename;
+            });
+    opt.reg({"-v", "--verbose"}, argparser::no_argument,
+            [&verbosity](std::string const &)
+            {
+                ++verbosity;
+            });
+    opt.reg({"-t", "--threads"}, argparser::required_argument,
+            [&num_threads](std::string const &n)
+            {
+                num_threads = static_cast<unsigned int>(std::stoi(n));
+            });
+    opt.reg({"-v", "--verbose"}, argparser::no_argument,
+            [&verbosity](std::string const &)
+            {
+                ++verbosity;
+            });
+    opt.reg({"-P", "--first-prefix"}, argparser::required_argument,
+            [&first_hash_prefix](std::string const &arg)
+            {
+                first_hash_prefix = std::stoul(arg, nullptr, 16);
+                if (first_hash_prefix >= MaxHashPrefix)
+                {
+                    std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            });
+    opt.reg({"-L", "--last-prefix"}, argparser::required_argument,
+            [&last_hash_prefix](std::string const &arg)
+            {
+                last_hash_prefix = std::stoul(arg, nullptr, 16);
+                if (last_hash_prefix >= MaxHashPrefix)
+                {
+                    std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            });
+    opt.reg({"-S", "--prefix-step"}, argparser::required_argument,
+            [&hash_prefix_step](std::string const &arg)
+            {
+                hash_prefix_step = std::stoul(arg, nullptr, 16);
+                if (hash_prefix_step >= MaxHashPrefix)
+                {
+                    std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            });
+    opt.reg({"-y", "--yes"}, argparser::no_argument,
+            [&yes](std::string const &)
+            {
+                yes = true;
+            });
+    opt.reg({"-q", "--quiet"}, argparser::no_argument,
+            [&quiet](std::string const &)
+            {
+                quiet = true;
+            });
+    opt.reg({"-?", "--help"}, argparser::no_argument,
+            [](std::string const &)
+            {
+                about();
+                usage();
+                exit(EXIT_SUCCESS);
+            });
+    opt.reg({"--license"}, argparser::no_argument,
+            [](std::string const &)
             {
                 license();
-                return EXIT_SUCCESS;
-            }
-            break;
-        case 'o':
-            output_filename = optarg;
-            break;
-        case 't':
-            num_threads = static_cast<unsigned int>(atoi(optarg));
-            break;
-        case 'P':
-            first_hash_prefix = std::stoul(optarg, nullptr, 16);
-            if (first_hash_prefix >= MaxHashPrefix)
-            {
-                std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
-                return EXIT_FAILURE;
-            }
-            break;
-        case 'L':
-            last_hash_prefix = std::stoul(optarg, nullptr, 16);
-            if (last_hash_prefix >= MaxHashPrefix)
-            {
-                std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
-                return EXIT_FAILURE;
-            }
-            break;
-        case 'S':
-            hash_prefix_step = std::stoul(optarg, nullptr, 16);
-            if (hash_prefix_step >= MaxHashPrefix)
-            {
-                std::cerr << "\u001b[31;1mERROR: invalid value, must be <= FFFFh.\u001b[0m" << std::endl;
-                return EXIT_FAILURE;
-            }
-            break;
-        case 'y':
-            yes = true;
-            break;
-        case 'q':
-            quiet = true;
-            break;
-        case 'v':
-            ++verbosity;
-            break;
-        case '?':
-            about();
-            usage();
-            return EXIT_SUCCESS;
-        default:
-            break;
-        }
+                exit(EXIT_SUCCESS);
+            });
+    try
+    {
+        opt();
+    }
+    catch(::argparser::argument_required_exception const& e)
+    {
+        std::cerr << e.what() << '\n';
     }
     if (verbosity > 0)
     {
@@ -333,7 +341,7 @@ int main(int argc, char *argv[])
             }
         }
     }
-    else 
+    else
     {
         if (verbosity > 1 && !yes)
         {
@@ -420,7 +428,7 @@ int main(int argc, char *argv[])
             do_quit = true;
             hibpdl.stop();
         };
-#if defined(__unix__) || defined(__linux__)
+#if defined(__unix__) || defined(__linux__) || defined(__APPLE__)
         struct sigaction sigint_handler;
         sigint_handler.sa_handler = signal_handler;
         sigemptyset(&sigint_handler.sa_mask);

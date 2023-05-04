@@ -40,17 +40,13 @@ set(HIBPDL_SOURCES
   src/util.cpp
 )
 
-if(WIN32)
-  set(HIBPDL_SOURCES ${HIBPDL_SOURCES} 3rdparty/getopt-for-windows/getopt.c)
-  set(PROJECT_INCLUDE_DIRS ${PROJECT_INCLUDE_DIRS} 3rdparty/getopt-for-windows)
-endif()
-
 add_executable(hibpdl ${HIBPDL_SOURCES})
 
 target_include_directories(hibpdl
   PRIVATE ${PROJECT_INCLUDE_DIRS}
   ${OPENSSL_INCLUDE_DIR}
   3rdparty/cpp-httplib
+  3rdparty/getopt-cpp/include
   build
 )
 
